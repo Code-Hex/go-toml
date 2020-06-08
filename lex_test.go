@@ -21,14 +21,16 @@ func mkItem(typ itemType, text string) item {
 	}
 }
 
-var lexTests = []lexTest{
-	{"empty", "", []item{tEOF}},
-	{"comment", "# hello, world", []item{tEOF}},
-	{"spaces", "     ", []item{tEOF}},
-}
-
 func TestLex(t *testing.T) {
-	for _, test := range lexTests {
+	for _, test := range []lexTest{
+		{"empty", "", []item{tEOF}},
+		{"comment", "# hello, world", []item{tEOF}},
+		{"spaces", "    \t", []item{tEOF}},
+		{"literal string quoted key", "'key'", []item{
+			mkItem(itemKey, "'key'"),
+			tEOF,
+		}},
+	} {
 		items := collect(&test)
 		if !equal(items, test.items, false) {
 			t.Errorf("%s: got\n\t%+v\nexpected\n\t%+v", test.name, items, test.items)

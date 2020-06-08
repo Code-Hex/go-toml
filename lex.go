@@ -13,10 +13,7 @@ type itemType int
 const (
 	itemError itemType = iota
 	itemEOF
-
-	itemWhiteSpace
-	// Newline means LF (0x0A) or CRLF (0x0D 0x0A).
-	itemNewLine
+	itemKey
 )
 
 const (
@@ -127,7 +124,7 @@ func (l *lexer) errorf(format string, args ...interface{}) stateFn {
 
 // ignore skips over the pending input before this point.
 func (l *lexer) ignore() {
-	l.line += strings.Count(l.input[l.start:l.pos], "\n")
+	// l.line += strings.Count(l.input[l.start:l.pos], "\n")
 	l.start = l.pos
 	l.startLine = l.line
 }
@@ -164,6 +161,10 @@ func lexText(l *lexer) stateFn {
 			l.skip()
 			continue
 		}
+
+		if isKey(next) {
+			return lexKey(l)
+		}
 	}
 	l.emit(itemEOF)
 	return nil
@@ -181,4 +182,48 @@ func lexComment(l *lexer) stateFn {
 	}
 	l.ignore()
 	return lexText
+}
+
+// https://github.com/toml-lang/toml#keys
+func isKey(c rune) bool {
+	isDigit := '0' <= c && c <= '9'
+	isLetters := 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z'
+	isDash := c == '-'
+	isUnderscore := c == '_'
+	isQuoted := c == '"' || c == '\''
+	return isDigit || isLetters || isDash || isUnderscore || isQuoted
+}
+
+func lexKey(l *lexer) stateFn {
+	for {
+		c := l.next()
+		if !isKey(c) && c != '\r' && c != '\n' {
+			return lexText
+		}
+		switch c {
+		case '"', '\'':
+			return lexQuotedKey(l, c)
+		}
+	}
+}
+
+func lexQuotedKey(l *lexer, delim rune) stateFn {
+	// if "Literal strings"
+	if delim == '\'' {
+		x := strings.Index(l.input[l.pos:], "'")
+		if x < 0 {
+			return l.errorf("failed to lex literal strings key: `%s`", l.input[l.pos:])
+		}
+		l.width = Pos(x + 1) // 1 for "'"
+		l.pos += l.width
+		l.emit(itemKey)
+		return lexText
+	}
+	// for {
+	// 	c := l.next()
+	// 	if delim != c {
+	// 		continue
+	// 	}
+	// }
+	return l.errorf("unsupported delimiter: `%c`", delim)
 }
