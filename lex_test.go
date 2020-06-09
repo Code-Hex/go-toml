@@ -30,6 +30,26 @@ func TestLex(t *testing.T) {
 			mkItem(itemKey, "key"),
 			tEOF,
 		}},
+		{"basic string", `"key"`, []item{
+			mkItem(itemKey, "key"),
+			tEOF,
+		}},
+		{"basic string with \\b\\t\\n\\f\\r\\\"\\\\", `"hello\b\t\n\f\r\"\\world"`, []item{
+			mkItem(itemKey, "hello\b\t\n\f\r\"\\world"),
+			tEOF,
+		}},
+		{"basic string with unicode 4-digits", `"\u65E5\u672C\u8A9E"`, []item{
+			mkItem(itemKey, "日本語"),
+			tEOF,
+		}},
+		{"basic string with unicode 8-digits", `"\U000065e5\U0000672c\U00008a9e"`, []item{
+			mkItem(itemKey, "日本語"),
+			tEOF,
+		}},
+		{"basic string complex", `"I'm a string. \"You can quote me\". Name\tJos\u00E9\nLocation\tSF."`, []item{
+			mkItem(itemKey, "I'm a string. \"You can quote me\". Name\tJos\u00E9\nLocation\tSF."),
+			tEOF,
+		}},
 	} {
 		items := collect(&test)
 		if !equal(items, test.items, false) {

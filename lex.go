@@ -2,6 +2,7 @@ package toml
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -41,6 +42,8 @@ type lexer struct {
 	items     chan item // channel of scanned items
 	line      int       // 1+number of newlines seen
 	startLine int       // start line of this item
+
+	buf strings.Builder
 }
 
 // lex creates a new scanner for the input string.
@@ -106,6 +109,18 @@ func (l *lexer) peek() rune {
 	r := l.next()
 	l.backup()
 	return r
+}
+
+func (l *lexer) writeRune(r rune) {
+	l.buf.WriteRune(r)
+	l.ignore()
+}
+
+func (l *lexer) emitBuffer(t itemType) {
+	l.items <- item{t, l.start, l.buf.String(), l.startLine}
+	l.start = l.pos
+	l.startLine = l.line
+	l.buf.Reset()
 }
 
 // emit passes an item back to the client.
@@ -202,13 +217,14 @@ func lexKey(l *lexer) stateFn {
 		}
 		switch c {
 		case '"', '\'':
-			l.ignore()
 			return lexQuotedKey(l, c)
 		}
 	}
 }
 
 func lexQuotedKey(l *lexer, delim rune) stateFn {
+	l.ignore() // ignore delim
+
 	// if "Literal strings"
 	if delim == '\'' {
 		x := strings.Index(l.input[l.pos:], "'")
@@ -221,8 +237,14 @@ func lexQuotedKey(l *lexer, delim rune) stateFn {
 		l.skip() // skip "'" at last
 		return lexText
 	}
+	// if "Basic strings"
 	if delim == '"' {
-		return lexBasicString
+		if err := scanBasicString(l); err != nil {
+			return l.errorf(err.Error())
+		}
+		l.emitBuffer(itemKey)
+		l.skip()
+		return lexText
 	}
 	// for {
 	// 	c := l.next()
@@ -233,6 +255,80 @@ func lexQuotedKey(l *lexer, delim rune) stateFn {
 	return l.errorf("unsupported delimiter: `%c`", delim)
 }
 
-func lexBasicString(l *lexer) stateFn {
-	return nil
+func scanBasicString(l *lexer) error {
+	for {
+		c := l.next()
+
+		switch c {
+		case '"':
+			return nil
+		case '\\':
+			l.ignore()
+			esc := l.next()
+			switch esc {
+			case 'b':
+				l.writeRune('\b')
+			case 't':
+				l.writeRune('\t')
+			case 'n':
+				l.writeRune('\n')
+			case 'f':
+				l.writeRune('\f')
+			case 'r':
+				l.writeRune('\r')
+			case '"':
+				l.writeRune('"')
+			case '\\':
+				l.writeRune('\\')
+			case 'u':
+				var code string
+				for i := 0; i < 4; i++ {
+					cc := l.next()
+					if !isHex(cc) {
+						return fmt.Errorf("unexpected character: `%#U`", cc)
+					}
+					code += string(cc)
+				}
+				i, err := strconv.ParseInt(code, 16, 32)
+				if err != nil {
+					return fmt.Errorf("invalid unicode escape: `\\u%s`", code)
+				}
+				if !isUnicodeScalar(i) {
+					return fmt.Errorf("invalid unicode scalar: `\\u%s`", code)
+				}
+				l.writeRune(rune(i))
+			case 'U':
+				var code string
+				for i := 0; i < 8; i++ {
+					cc := l.next()
+					if !isHex(cc) {
+						return fmt.Errorf("unexpected character: `%#U`", cc)
+					}
+					code += string(cc)
+				}
+				i, err := strconv.ParseInt(code, 16, 64)
+				if err != nil {
+					return fmt.Errorf("invalid unicode escape: `\\u%s`", code)
+				}
+				if !isUnicodeScalar(i) {
+					return fmt.Errorf("invalid unicode scalar: `\\u%s`", code)
+				}
+				l.writeRune(rune(i))
+			default:
+				return fmt.Errorf("invalid escape: `%#U`", esc)
+			}
+		default:
+			l.writeRune(c)
+		}
+	}
+}
+
+func isHex(r rune) bool {
+	return '0' <= r && r <= '9' || 'a' <= r && r <= 'f' || 'A' <= r && r <= 'F'
+}
+
+// The escape codes must be valid Unicode scalar values.
+// http://unicode.org/glossary/#unicode_scalar_value
+func isUnicodeScalar(i int64) bool {
+	return 0 <= i && i <= 0xD7FF || 0xE000 <= i && i <= 0x10FFFF
 }
