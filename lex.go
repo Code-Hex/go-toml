@@ -15,6 +15,7 @@ const (
 	itemError itemType = iota
 	itemEOF
 	itemKey
+	itemEqual
 )
 
 const (
@@ -170,6 +171,8 @@ func lexText(l *lexer) stateFn {
 		switch next {
 		case '#':
 			return lexComment(l)
+		case '=':
+			return lexEqual
 		}
 
 		if isSpace(next) {
@@ -199,6 +202,22 @@ func lexComment(l *lexer) stateFn {
 	return lexText
 }
 
+func lexEqual(l *lexer) stateFn {
+	l.next()
+	l.emit(itemEqual)
+	return lexValue
+}
+
+func lexValue(l *lexer) stateFn {
+	for {
+		c := l.next()
+
+		if c == eof {
+			return l.errorf("invalid unspecified value")
+		}
+	}
+}
+
 // https://github.com/toml-lang/toml#keys
 func isKey(c rune) bool {
 	isDigit := '0' <= c && c <= '9'
@@ -213,6 +232,8 @@ func lexKey(l *lexer) stateFn {
 	for {
 		c := l.next()
 		if !isKey(c) && c != '\r' && c != '\n' {
+			l.backup()
+			l.emit(itemKey)
 			return lexText
 		}
 		switch c {

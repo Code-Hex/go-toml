@@ -50,6 +50,11 @@ func TestLex(t *testing.T) {
 			mkItem(itemKey, "I'm a string. \"You can quote me\". Name\tJos\u00E9\nLocation\tSF."),
 			tEOF,
 		}},
+		{"invalid key", "key =", []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemError, "invalid unspecified value"),
+		}},
 	} {
 		items := collect(&test)
 		if !equal(items, test.items, false) {
