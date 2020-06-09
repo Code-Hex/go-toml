@@ -202,6 +202,7 @@ func lexKey(l *lexer) stateFn {
 		}
 		switch c {
 		case '"', '\'':
+			l.ignore()
 			return lexQuotedKey(l, c)
 		}
 	}
@@ -214,10 +215,14 @@ func lexQuotedKey(l *lexer, delim rune) stateFn {
 		if x < 0 {
 			return l.errorf("failed to lex literal strings key: `%s`", l.input[l.pos:])
 		}
-		l.width = Pos(x + 1) // 1 for "'"
+		l.width = Pos(x)
 		l.pos += l.width
 		l.emit(itemKey)
+		l.skip() // skip "'" at last
 		return lexText
+	}
+	if delim == '"' {
+		return lexBasicString
 	}
 	// for {
 	// 	c := l.next()
@@ -226,4 +231,8 @@ func lexQuotedKey(l *lexer, delim rune) stateFn {
 	// 	}
 	// }
 	return l.errorf("unsupported delimiter: `%c`", delim)
+}
+
+func lexBasicString(l *lexer) stateFn {
+	return nil
 }

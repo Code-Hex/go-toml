@@ -27,7 +27,7 @@ func TestLex(t *testing.T) {
 		{"comment", "# hello, world", []item{tEOF}},
 		{"spaces", "    \t", []item{tEOF}},
 		{"literal string quoted key", "'key'", []item{
-			mkItem(itemKey, "'key'"),
+			mkItem(itemKey, "key"),
 			tEOF,
 		}},
 	} {
