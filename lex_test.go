@@ -55,6 +55,18 @@ func TestLex(t *testing.T) {
 			mkItem(itemEqual, "="),
 			mkItem(itemError, "invalid unspecified value"),
 		}},
+		{"key = basic string", `key = "\u65E5\u672C\u8A9E"`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemStringValue, "日本語"),
+			tEOF,
+		}},
+		{"key = string literal", `key = 'hello'`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemStringValue, "hello"),
+			tEOF,
+		}},
 	} {
 		items := collect(&test)
 		if !equal(items, test.items, false) {

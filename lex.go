@@ -16,6 +16,11 @@ const (
 	itemEOF
 	itemKey
 	itemEqual
+	itemStringValue
+	itemIntegerValue
+	itemFloatValue
+	itemBooleanValue
+	itemTimeValue
 )
 
 const (
@@ -215,6 +220,27 @@ func lexValue(l *lexer) stateFn {
 		if c == eof {
 			return l.errorf("invalid unspecified value")
 		}
+
+		if isSpace(c) {
+			l.ignore()
+			continue
+		}
+		switch c {
+		case '"':
+			if err := scanBasicString(l); err != nil {
+				return l.errorf(err.Error())
+			}
+			l.emitBuffer(itemStringValue)
+			l.skip()
+		case '\'':
+			l.ignore()
+			if err := scanLiteralString(l); err != nil {
+				return l.errorf(err.Error())
+			}
+			l.emit(itemStringValue)
+			l.skip() // skip "'" at last
+		}
+		return lexText
 	}
 }
 
@@ -248,12 +274,9 @@ func lexQuotedKey(l *lexer, delim rune) stateFn {
 
 	// if "Literal strings"
 	if delim == '\'' {
-		x := strings.Index(l.input[l.pos:], "'")
-		if x < 0 {
-			return l.errorf("failed to lex literal strings key: `%s`", l.input[l.pos:])
+		if err := scanLiteralString(l); err != nil {
+			return l.errorf(err.Error())
 		}
-		l.width = Pos(x)
-		l.pos += l.width
 		l.emit(itemKey)
 		l.skip() // skip "'" at last
 		return lexText
@@ -267,13 +290,17 @@ func lexQuotedKey(l *lexer, delim rune) stateFn {
 		l.skip()
 		return lexText
 	}
-	// for {
-	// 	c := l.next()
-	// 	if delim != c {
-	// 		continue
-	// 	}
-	// }
 	return l.errorf("unsupported delimiter: `%c`", delim)
+}
+
+func scanLiteralString(l *lexer) error {
+	x := strings.Index(l.input[l.pos:], "'")
+	if x < 0 {
+		return fmt.Errorf("failed to lex literal strings key: `%s`", l.input[l.pos:])
+	}
+	l.width = Pos(x)
+	l.pos += l.width
+	return nil
 }
 
 func scanBasicString(l *lexer) error {
