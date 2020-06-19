@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 )
 
 // https://github.com/toml-lang/toml
@@ -44,7 +43,6 @@ type lexer struct {
 	input     string    // the string being scanned
 	pos       Pos       // current position in the input
 	start     Pos       // start position of this item
-	width     Pos       // width of last rune read from input
 	items     chan item // channel of scanned items
 	line      int       // 1+number of newlines seen
 	startLine int       // start line of this item
@@ -75,12 +73,10 @@ func (l *lexer) run() {
 
 func (l *lexer) next() rune {
 	if l.isEOF() {
-		l.width = 0
 		return eof
 	}
-	r, w := utf8.DecodeRuneInString(l.input[l.pos:])
-	l.width = Pos(w)
-	l.pos += l.width
+	r := l.input[l.pos]
+	l.pos++
 	// https://github.com/toml-lang/toml#spec
 	// Newline means LF (0x0A) or CRLF (0x0D 0x0A).
 	switch r {
@@ -89,17 +85,17 @@ func (l *lexer) next() rune {
 	case '\n':
 		l.line++
 	}
-	return r
+	return rune(r)
 }
 
 // backup steps back one rune. Can only be called once per call of next.
 func (l *lexer) backup() {
-	l.pos -= l.width
+	l.pos--
 	// Correct newline count.
-	if l.width == 1 && l.input[l.pos] == '\n' {
+	if l.input[l.pos] == '\n' {
 		l.line--
-		if int(l.pos) > 0 && l.input[l.pos-1] == '\r' {
-			l.pos-- // l.width == 1
+		if l.pos > 0 && l.input[l.pos-1] == '\r' {
+			l.pos--
 		}
 	}
 }
@@ -112,6 +108,9 @@ func (l *lexer) nextItem() item {
 
 // peek returns but does not consume the next rune in the input.
 func (l *lexer) peek() rune {
+	if l.isEOF() {
+		return eof
+	}
 	r := l.next()
 	l.backup()
 	return r
@@ -170,7 +169,6 @@ func lexText(l *lexer) stateFn {
 	for {
 		next := l.peek()
 		if next == eof {
-			l.next()
 			break
 		}
 		switch next {
@@ -298,8 +296,7 @@ func scanLiteralString(l *lexer) error {
 	if x < 0 {
 		return fmt.Errorf("failed to lex literal strings key: `%s`", l.input[l.pos:])
 	}
-	l.width = Pos(x)
-	l.pos += l.width
+	l.pos += Pos(x)
 	return nil
 }
 
