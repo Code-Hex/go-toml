@@ -67,6 +67,24 @@ func TestLex(t *testing.T) {
 			mkItem(itemStringValue, "hello"),
 			tEOF,
 		}},
+		{"key = multi-line basic string strings", "key = \"\"\"\nhello\nworld\"\"\"", []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemStringValue, "hello\nworld"),
+			tEOF,
+		}},
+		{"key = multi-line basic string strings on windows", "key = \"\"\"\nhello\r\nworld\"\"\"", []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemStringValue, "hello\r\nworld"),
+			tEOF,
+		}},
+		{"key = multi-line basic string strings backslash", "key = \"\"\"\\\nhello \\\n\n world\\\"\"\"", []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemStringValue, "hello world"),
+			tEOF,
+		}},
 	} {
 		items := collect(&test)
 		if !equal(items, test.items, false) {

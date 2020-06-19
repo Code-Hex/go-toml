@@ -77,12 +77,7 @@ func (l *lexer) next() rune {
 	}
 	r := l.input[l.pos]
 	l.pos++
-	// https://github.com/toml-lang/toml#spec
-	// Newline means LF (0x0A) or CRLF (0x0D 0x0A).
-	switch r {
-	case '\r':
-		return l.next()
-	case '\n':
+	if r == '\n' {
 		l.line++
 	}
 	return rune(r)
@@ -94,9 +89,6 @@ func (l *lexer) backup() {
 	// Correct newline count.
 	if l.input[l.pos] == '\n' {
 		l.line--
-		if l.pos > 0 && l.input[l.pos-1] == '\r' {
-			l.pos--
-		}
 	}
 }
 
@@ -191,6 +183,10 @@ func lexText(l *lexer) stateFn {
 			return lexComment(l)
 		case '=':
 			return lexEqual
+		case '\r', '\n':
+			// https://github.com/toml-lang/toml#spec
+			// Newline means LF (0x0A) or CRLF (0x0D 0x0A).
+			l.next()
 		}
 
 		if isSpace(next) {
@@ -229,7 +225,6 @@ func lexEqual(l *lexer) stateFn {
 func lexValue(l *lexer) stateFn {
 	for {
 		c := l.next()
-
 		if c == eof {
 			return l.errorf("invalid unspecified value")
 		}
@@ -240,6 +235,15 @@ func lexValue(l *lexer) stateFn {
 		}
 		switch c {
 		case '"':
+			// check multiline first
+			if l.isNextString(`""`) {
+				l.skipN(3)
+				if err := scanMultiLineBasicStrings(l); err != nil {
+					return l.errorf(err.Error())
+				}
+				l.emitBuffer(itemStringValue)
+				break
+			}
 			if err := scanBasicString(l); err != nil {
 				return l.errorf(err.Error())
 			}
@@ -247,6 +251,7 @@ func lexValue(l *lexer) stateFn {
 			l.skip()
 		case '\'':
 			l.ignore()
+			// check multiline first
 			if err := scanLiteralString(l); err != nil {
 				return l.errorf(err.Error())
 			}
@@ -380,6 +385,41 @@ func scanBasicString(l *lexer) error {
 		default:
 			l.writeRune(c)
 		}
+	}
+}
+
+func scanMultiLineBasicStrings(l *lexer) error {
+	onHead := true
+	backSlash := false
+
+	for {
+		if l.isNextString(`"""`) {
+			l.skipN(3)
+			return nil
+		}
+
+		c := l.next()
+		// A newline immediately following the opening delimiter will be trimmed.
+		for onHead && (c == '\n' || c == '\r') {
+			c = l.next()
+		}
+		onHead = false
+
+		if c == '\\' {
+			backSlash = true
+			continue
+		}
+		if backSlash {
+			// When the last non-whitespace character on a line is an unescaped \,
+			// it will be trimmed along with all whitespace (including newlines)
+			// up to the next non-whitespace character or closing delimiter.
+			if c == ' ' || c == '\n' || c == '\r' {
+				continue
+			}
+		}
+
+		backSlash = false
+		l.writeRune(c)
 	}
 }
 
