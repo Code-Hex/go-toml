@@ -116,6 +116,15 @@ func (l *lexer) peek() rune {
 	return r
 }
 
+func (l *lexer) isNextString(s string) bool {
+	ln := Pos(len(s))
+	wantPos := l.pos + ln
+	if int(wantPos) > len(l.input) {
+		return false
+	}
+	return l.input[l.pos:wantPos] == s
+}
+
 func (l *lexer) writeRune(r rune) {
 	l.buf.WriteRune(r)
 	l.ignore()
@@ -151,6 +160,12 @@ func (l *lexer) ignore() {
 
 func (l *lexer) skip() {
 	l.next()
+	l.ignore()
+}
+
+// skipN skips next n characters. use this when want to skip string.
+func (l *lexer) skipN(n int) {
+	l.pos += Pos(n)
 	l.ignore()
 }
 

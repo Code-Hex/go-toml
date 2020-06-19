@@ -108,3 +108,48 @@ func equal(i1, i2 []item, checkPos bool) bool {
 	}
 	return true
 }
+
+func Test_lexer_isNextString(t *testing.T) {
+	tests := []struct {
+		name  string
+		lexer *lexer
+		s     string
+		want  bool
+	}{
+		{
+			name: "pos 0, want true",
+			lexer: &lexer{
+				input: "hello",
+				pos:   0,
+			},
+			s:    "hello",
+			want: true,
+		},
+		{
+			name: "pos 0, diff str, want false",
+			lexer: &lexer{
+				input: "hello",
+				pos:   1,
+			},
+			s:    "world",
+			want: false,
+		},
+		{
+			name: "pos 1, range over, want false",
+			lexer: &lexer{
+				input: "hello",
+				pos:   1,
+			},
+			s:    "hello",
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := tt.lexer
+			if got := l.isNextString(tt.s); got != tt.want {
+				t.Errorf("lexer.isNextString() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
