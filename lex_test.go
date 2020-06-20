@@ -61,6 +61,12 @@ func TestLex(t *testing.T) {
 			mkItem(itemStringValue, "日本語"),
 			tEOF,
 		}},
+		{"key = basic string 2", `key = "Here are fifteen apostrophes: '''''''''''''''"`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemStringValue, "Here are fifteen apostrophes: '''''''''''''''"),
+			tEOF,
+		}},
 		{"key = string literal", `key = 'hello'`, []item{
 			mkItem(itemKey, "key"),
 			mkItem(itemEqual, "="),
@@ -152,6 +158,26 @@ func TestLex(t *testing.T) {
 				mkItem(itemKey, "key"),
 				mkItem(itemEqual, "="),
 				mkItem(itemStringValue, `I [dw]on't need \d{2} apples`),
+				tEOF,
+			},
+		},
+		{
+			"key = multi-line literal strings include '\"'",
+			`key = '''Here are fifteen quotation marks: """""""""""""""'''`,
+			[]item{
+				mkItem(itemKey, "key"),
+				mkItem(itemEqual, "="),
+				mkItem(itemStringValue, `Here are fifteen quotation marks: """""""""""""""`),
+				tEOF,
+			},
+		},
+		{
+			"key = multi-line literal strings sigle quoted",
+			`key = ''''That,' she said, 'is still pointless.''''`,
+			[]item{
+				mkItem(itemKey, "key"),
+				mkItem(itemEqual, "="),
+				mkItem(itemStringValue, `'That,' she said, 'is still pointless.'`),
 				tEOF,
 			},
 		},

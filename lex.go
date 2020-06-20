@@ -476,6 +476,11 @@ func scanMultiLineLiteralStrings(l *lexer) error {
 	for {
 		if l.isNextString(`'''`) {
 			l.skipN(3)
+			if l.peek() == '\'' {
+				l.skipN(-2)
+				l.writeRune('\'')
+				continue
+			}
 			return nil
 		}
 
