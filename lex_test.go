@@ -73,18 +73,68 @@ func TestLex(t *testing.T) {
 			mkItem(itemStringValue, "hello\nworld"),
 			tEOF,
 		}},
-		{"key = multi-line basic string strings on windows", "key = \"\"\"\nhello\r\nworld\"\"\"", []item{
+		{"key = multi-line basic strings on windows", "key = \"\"\"\nhello\r\nworld\"\"\"", []item{
 			mkItem(itemKey, "key"),
 			mkItem(itemEqual, "="),
 			mkItem(itemStringValue, "hello\r\nworld"),
 			tEOF,
 		}},
-		{"key = multi-line basic string strings backslash", "key = \"\"\"\\\nhello \\\n\n world\\\"\"\"", []item{
+		{"key = multi-line basic strings backslash", "key = \"\"\"\\\nhello \\\n\n world\\\n\"\"\"", []item{
 			mkItem(itemKey, "key"),
 			mkItem(itemEqual, "="),
 			mkItem(itemStringValue, "hello world"),
 			tEOF,
 		}},
+		{
+			"key = multi-line basic strings flatten",
+			`key = """Here"""`,
+			[]item{
+				mkItem(itemKey, "key"),
+				mkItem(itemEqual, "="),
+				mkItem(itemStringValue, `Here`),
+				tEOF,
+			},
+		},
+		{
+			"key = multi-line basic strings escaped three quotation marks",
+			`key = """Here are three quotation marks: ""\"."""`,
+			[]item{
+				mkItem(itemKey, "key"),
+				mkItem(itemEqual, "="),
+				mkItem(itemStringValue, `Here are three quotation marks: """.`),
+				tEOF,
+			},
+		},
+		{
+			"key = multi-line basic strings escaped fifteen quotation marks",
+			`key = """Here are fifteen quotation marks: ""\"""\"""\"""\"""\"."""`,
+			[]item{
+				mkItem(itemKey, "key"),
+				mkItem(itemEqual, "="),
+				mkItem(itemStringValue, `Here are fifteen quotation marks: """"""""""""""".`),
+				tEOF,
+			},
+		},
+		{
+			"invalid multi-line basic strings 1",
+			`key = """Here are three quotation marks: """."""`,
+			[]item{
+				mkItem(itemKey, "key"),
+				mkItem(itemEqual, "="),
+				mkItem(itemStringValue, "Here are three quotation marks: "),
+				mkItem(itemError, "invalid character: `U+002E '.'`"),
+			},
+		},
+		{
+			"key = multi-line basic strings prefix '\"'",
+			`key = """"This," she said, "is just a pointless statement.""""`,
+			[]item{
+				mkItem(itemKey, "key"),
+				mkItem(itemEqual, "="),
+				mkItem(itemStringValue, `"This," she said, "is just a pointless statement."`),
+				tEOF,
+			},
+		},
 	} {
 		items := collect(&test)
 		if !equal(items, test.items, false) {

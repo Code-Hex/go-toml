@@ -197,6 +197,8 @@ func lexText(l *lexer) stateFn {
 		if isKey(next) {
 			return lexKey(l)
 		}
+
+		return l.errorf("invalid character: `%#U`", next)
 	}
 	l.emit(itemEOF)
 	return nil
@@ -237,7 +239,7 @@ func lexValue(l *lexer) stateFn {
 		case '"':
 			// check multiline first
 			if l.isNextString(`""`) {
-				l.skipN(3)
+				l.skipN(2)
 				if err := scanMultiLineBasicStrings(l); err != nil {
 					return l.errorf(err.Error())
 				}
@@ -330,57 +332,8 @@ func scanBasicString(l *lexer) error {
 		case '\\':
 			l.ignore()
 			esc := l.next()
-			switch esc {
-			case 'b':
-				l.writeRune('\b')
-			case 't':
-				l.writeRune('\t')
-			case 'n':
-				l.writeRune('\n')
-			case 'f':
-				l.writeRune('\f')
-			case 'r':
-				l.writeRune('\r')
-			case '"':
-				l.writeRune('"')
-			case '\\':
-				l.writeRune('\\')
-			case 'u':
-				var code string
-				for i := 0; i < 4; i++ {
-					cc := l.next()
-					if !isHex(cc) {
-						return fmt.Errorf("unexpected character: `%#U`", cc)
-					}
-					code += string(cc)
-				}
-				i, err := strconv.ParseInt(code, 16, 32)
-				if err != nil {
-					return fmt.Errorf("invalid unicode escape: `\\u%s`", code)
-				}
-				if !isUnicodeScalar(i) {
-					return fmt.Errorf("invalid unicode scalar: `\\u%s`", code)
-				}
-				l.writeRune(rune(i))
-			case 'U':
-				var code string
-				for i := 0; i < 8; i++ {
-					cc := l.next()
-					if !isHex(cc) {
-						return fmt.Errorf("unexpected character: `%#U`", cc)
-					}
-					code += string(cc)
-				}
-				i, err := strconv.ParseInt(code, 16, 64)
-				if err != nil {
-					return fmt.Errorf("invalid unicode escape: `\\u%s`", code)
-				}
-				if !isUnicodeScalar(i) {
-					return fmt.Errorf("invalid unicode scalar: `\\u%s`", code)
-				}
-				l.writeRune(rune(i))
-			default:
-				return fmt.Errorf("invalid escape: `%#U`", esc)
+			if err := scanEscapedChars(l, esc); err != nil {
+				return err
 			}
 		default:
 			l.writeRune(c)
@@ -390,15 +343,31 @@ func scanBasicString(l *lexer) error {
 
 func scanMultiLineBasicStrings(l *lexer) error {
 	onHead := true
-	backSlash := false
 
 	for {
 		if l.isNextString(`"""`) {
 			l.skipN(3)
+			if l.peek() == '"' {
+				l.skipN(-2)
+				l.writeRune('"')
+				continue
+			}
 			return nil
 		}
 
 		c := l.next()
+		if c == eof {
+			return nil
+		}
+
+		// Any Unicode character may be used except those that
+		// must be escaped: backslash and the control characters
+		// other than tab, line feed, and carriage return
+		// (U+0000 to U+0008, U+000B, U+000C, U+000E to U+001F, U+007F).
+		if 0x00 <= c && c <= 0x08 || c == 0x0b || c == 0x0c || 0x0e <= c && c <= 0x1f || c == 0x7f {
+			return fmt.Errorf("unexpected control character: `%#U`", c)
+		}
+
 		// A newline immediately following the opening delimiter will be trimmed.
 		for onHead && (c == '\n' || c == '\r') {
 			c = l.next()
@@ -406,21 +375,88 @@ func scanMultiLineBasicStrings(l *lexer) error {
 		onHead = false
 
 		if c == '\\' {
-			backSlash = true
-			continue
-		}
-		if backSlash {
+			l.ignore()
+			c = l.next()
+
 			// When the last non-whitespace character on a line is an unescaped \,
 			// it will be trimmed along with all whitespace (including newlines)
 			// up to the next non-whitespace character or closing delimiter.
-			if c == ' ' || c == '\n' || c == '\r' {
+			canSkip := false
+			for c == ' ' || c == '\n' || c == '\r' {
+				c = l.next()
+				canSkip = true
+			}
+			if canSkip {
+				// others: c == ' ' || c == '\n' || c == '\r'
+				l.backup()
+				l.ignore()
 				continue
 			}
+
+			if err := scanEscapedChars(l, c); err != nil {
+				return err
+			}
+			continue
 		}
 
-		backSlash = false
 		l.writeRune(c)
 	}
+}
+
+func scanEscapedChars(l *lexer, c rune) error {
+	switch c {
+	case 'b':
+		l.writeRune('\b')
+	case 't':
+		l.writeRune('\t')
+	case 'n':
+		l.writeRune('\n')
+	case 'f':
+		l.writeRune('\f')
+	case 'r':
+		l.writeRune('\r')
+	case '"':
+		l.writeRune('"')
+	case '\\':
+		l.writeRune('\\')
+	case 'u':
+		var code string
+		for i := 0; i < 4; i++ {
+			cc := l.next()
+			if !isHex(cc) {
+				return fmt.Errorf("unexpected character: `%#U`", cc)
+			}
+			code += string(cc)
+		}
+		i, err := strconv.ParseInt(code, 16, 32)
+		if err != nil {
+			return fmt.Errorf("invalid unicode escape: `\\u%s`", code)
+		}
+		if !isUnicodeScalar(i) {
+			return fmt.Errorf("invalid unicode scalar: `\\u%s`", code)
+		}
+		l.writeRune(rune(i))
+	case 'U':
+		var code string
+		for i := 0; i < 8; i++ {
+			cc := l.next()
+			if !isHex(cc) {
+				return fmt.Errorf("unexpected character: `%#U`", cc)
+			}
+			code += string(cc)
+		}
+		i, err := strconv.ParseInt(code, 16, 64)
+		if err != nil {
+			return fmt.Errorf("invalid unicode escape: `\\u%s`", code)
+		}
+		if !isUnicodeScalar(i) {
+			return fmt.Errorf("invalid unicode scalar: `\\u%s`", code)
+		}
+		l.writeRune(rune(i))
+	default:
+		return fmt.Errorf("invalid escape: `%#U`", c)
+	}
+	return nil
 }
 
 func isHex(r rune) bool {
