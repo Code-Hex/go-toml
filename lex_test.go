@@ -181,6 +181,86 @@ func TestLex(t *testing.T) {
 				tEOF,
 			},
 		},
+		{"key = integer", `key = 01234`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemIntegerValue, "01234"),
+			tEOF,
+		}},
+		{"key = integer 0", `key = 0`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemIntegerValue, "0"),
+			tEOF,
+		}},
+		{"key = integer 1", `key = 1`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemIntegerValue, "1"),
+			tEOF,
+		}},
+		{"key = integer with '_'", `key = 1_234_56789`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemIntegerValue, "1_234_56789"),
+			tEOF,
+		}},
+		{"invalid key = integer decimal with '_'", `key = 1_`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemError, "expected integer after '_'"),
+		}},
+		{"key = integer prefix `+`", `key = +10`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemIntegerValue, "+10"),
+			tEOF,
+		}},
+		{"key = integer prefix `-`", `key = -10`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemIntegerValue, "-10"),
+			tEOF,
+		}},
+		{"key = integer hex", `key = 0xdead_BEEF`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemIntegerValue, "0xdead_BEEF"),
+			tEOF,
+		}},
+		{"invalid key = integer hex with '_'", `key = 0x1_22_`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemError, "expected integer after '_'"),
+		}},
+		{"key = integer oct", `oct1 = 0o01234567`, []item{
+			mkItem(itemKey, "oct1"),
+			mkItem(itemEqual, "="),
+			mkItem(itemIntegerValue, "0o01234567"),
+			tEOF,
+		}},
+		{"invalid key = integer oct with '_'", `key = 0o0123_`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemError, "expected integer after '_'"),
+		}},
+		{"key = integer oct", `oct1 = -0o01234567`, []item{
+			mkItem(itemKey, "oct1"),
+			mkItem(itemEqual, "="),
+			mkItem(itemIntegerValue, "-0o01234567"),
+			tEOF,
+		}},
+		{"key = integer bin", `bin1 = 0b11010110`, []item{
+			mkItem(itemKey, "bin1"),
+			mkItem(itemEqual, "="),
+			mkItem(itemIntegerValue, "0b11010110"),
+			tEOF,
+		}},
+		{"invalid key = integer bin with '_'", `key = 0b01_01_`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemError, "expected integer after '_'"),
+		}},
 	} {
 		items := collect(&test)
 		if !equal(items, test.items, false) {

@@ -225,6 +225,7 @@ func lexEqual(l *lexer) stateFn {
 }
 
 func lexValue(l *lexer) stateFn {
+VALUE:
 	for {
 		c := l.next()
 		if c == eof {
@@ -267,6 +268,38 @@ func lexValue(l *lexer) stateFn {
 			}
 			l.emitBuffer(itemStringValue)
 			l.skip() // skip "'" at last
+		case '+', '-':
+			next := l.peek()
+			if !isDigit(next) {
+				return l.errorf("expected digit character: `%#U`", next)
+			}
+			continue VALUE
+		case '0':
+			switch l.peek() {
+			case 'x':
+				l.next()
+				if err := scanHex(l); err != nil {
+					return l.errorf(err.Error())
+				}
+			case 'o':
+				l.next()
+				if err := scanOct(l); err != nil {
+					return l.errorf(err.Error())
+				}
+			case 'b':
+				l.next()
+				if err := scanBin(l); err != nil {
+					return l.errorf(err.Error())
+				}
+			case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+				continue VALUE
+			}
+			l.emit(itemIntegerValue)
+		case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			if err := scanDigits(l); err != nil {
+				return l.errorf(err.Error())
+			}
+			l.emit(itemIntegerValue)
 		}
 		return lexText
 	}
@@ -498,8 +531,50 @@ func scanMultiLineLiteralStrings(l *lexer) error {
 	}
 }
 
+func scanInteger(l *lexer, cond func(rune) bool) error {
+	for {
+		c := l.next()
+		if cond(c) {
+			continue
+		}
+
+		if c == '_' {
+			if cond(l.peek()) {
+				continue
+			}
+			return fmt.Errorf("expected integer after '_'")
+		}
+
+		return nil
+	}
+}
+
+func scanDigits(l *lexer) error {
+	return scanInteger(l, isDigit)
+}
+
+func scanHex(l *lexer) error {
+	return scanInteger(l, isHex)
+}
+
+func scanOct(l *lexer) error {
+	return scanInteger(l, func(c rune) bool {
+		return '0' <= c && c <= '7'
+	})
+}
+
+func scanBin(l *lexer) error {
+	return scanInteger(l, func(c rune) bool {
+		return c == '0' || c == '1'
+	})
+}
+
+func isDigit(r rune) bool {
+	return '0' <= r && r <= '9'
+}
+
 func isHex(r rune) bool {
-	return '0' <= r && r <= '9' || 'a' <= r && r <= 'f' || 'A' <= r && r <= 'F'
+	return isDigit(r) || 'a' <= r && r <= 'f' || 'A' <= r && r <= 'F'
 }
 
 // The escape codes must be valid Unicode scalar values.
