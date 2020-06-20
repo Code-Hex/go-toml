@@ -257,7 +257,7 @@ func lexValue(l *lexer) stateFn {
 			if err := scanLiteralString(l); err != nil {
 				return l.errorf(err.Error())
 			}
-			l.emit(itemStringValue)
+			l.emitBuffer(itemStringValue)
 			l.skip() // skip "'" at last
 		}
 		return lexText
@@ -297,7 +297,7 @@ func lexQuotedKey(l *lexer, delim rune) stateFn {
 		if err := scanLiteralString(l); err != nil {
 			return l.errorf(err.Error())
 		}
-		l.emit(itemKey)
+		l.emitBuffer(itemKey)
 		l.skip() // skip "'" at last
 		return lexText
 	}
@@ -314,12 +314,16 @@ func lexQuotedKey(l *lexer, delim rune) stateFn {
 }
 
 func scanLiteralString(l *lexer) error {
-	x := strings.Index(l.input[l.pos:], "'")
-	if x < 0 {
-		return fmt.Errorf("failed to lex literal strings key: `%s`", l.input[l.pos:])
+	for {
+		c := l.next()
+		switch c {
+		case eof, '\'':
+			return nil
+		case '\t', '\r', '\n':
+		default:
+			l.writeRune(c)
+		}
 	}
-	l.pos += Pos(x)
-	return nil
 }
 
 func scanBasicString(l *lexer) error {
