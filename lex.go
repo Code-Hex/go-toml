@@ -252,6 +252,14 @@ func lexValue(l *lexer) stateFn {
 			l.emitBuffer(itemStringValue)
 			l.skip()
 		case '\'':
+			if l.isNextString(`''`) {
+				l.skipN(2)
+				if err := scanMultiLineLiteralStrings(l); err != nil {
+					return l.errorf(err.Error())
+				}
+				l.emitBuffer(itemStringValue)
+				break
+			}
 			l.ignore()
 			// check multiline first
 			if err := scanLiteralString(l); err != nil {
@@ -461,6 +469,28 @@ func scanEscapedChars(l *lexer, c rune) error {
 		return fmt.Errorf("invalid escape: `%#U`", c)
 	}
 	return nil
+}
+
+func scanMultiLineLiteralStrings(l *lexer) error {
+	onHead := true
+	for {
+		if l.isNextString(`'''`) {
+			l.skipN(3)
+			return nil
+		}
+
+		c := l.next()
+		if c == eof {
+			return nil
+		}
+		// A newline immediately following the opening delimiter will be trimmed.
+		for onHead && (c == '\n' || c == '\r') {
+			c = l.next()
+		}
+		onHead = false
+
+		l.writeRune(c)
+	}
 }
 
 func isHex(r rune) bool {

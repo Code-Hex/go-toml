@@ -135,6 +135,26 @@ func TestLex(t *testing.T) {
 				tEOF,
 			},
 		},
+		{
+			"key = multi-line literal strings",
+			"key = '''\n\nhello\nworld\n'''",
+			[]item{
+				mkItem(itemKey, "key"),
+				mkItem(itemEqual, "="),
+				mkItem(itemStringValue, "hello\nworld\n"),
+				tEOF,
+			},
+		},
+		{
+			"key = multi-line literal strings flatten",
+			`key = '''I [dw]on't need \d{2} apples'''`,
+			[]item{
+				mkItem(itemKey, "key"),
+				mkItem(itemEqual, "="),
+				mkItem(itemStringValue, `I [dw]on't need \d{2} apples`),
+				tEOF,
+			},
+		},
 	} {
 		items := collect(&test)
 		if !equal(items, test.items, false) {
