@@ -108,6 +108,14 @@ func (l *lexer) peek() rune {
 	return r
 }
 
+func (l *lexer) follow(s string) bool {
+	if l.isNextString(s) {
+		l.pos += Pos(len(s))
+		return true
+	}
+	return false
+}
+
 func (l *lexer) isNextString(s string) bool {
 	ln := Pos(len(s))
 	wantPos := l.pos + ln
@@ -267,12 +275,12 @@ func lexValue(l *lexer) stateFn {
 			}
 			l.emitBuffer(itemStringValue)
 			l.skip() // skip "'" at last
-		case '+', '-':
-			c = l.next()
-			if !isDigit(c) {
-				return l.errorf("expected digit character: `%#U`", c)
-			}
+		case '+', '-', 'i', 'n':
+			// 'i' => expected "inf"
+			// 'n' => expected "nan"
+			return lexNumber(l, c)
 		}
+
 		if isDigit(c) {
 			return lexNumber(l, c)
 		}
@@ -280,38 +288,92 @@ func lexValue(l *lexer) stateFn {
 	}
 }
 
-func lexNumber(l *lexer, head rune) (ret stateFn) {
-	var err error
-
-	defer func() {
-		if err != nil {
-			ret = l.errorf(err.Error())
-		} else {
-			l.emit(itemIntegerValue)
-			ret = lexText
+func lexNumber(l *lexer, head rune) stateFn {
+	if head == '+' || head == '-' {
+		head = l.next()
+		if head != 'i' && head != 'n' && !isDigit(head) {
+			return l.errorf("expected digit character: `%#U`", head)
 		}
-	}()
+	}
+
+	// "inf" or "nan"
+	if l.follow("nf") || l.follow("an") {
+		l.emit(itemFloatValue)
+		return lexText
+	}
 
 	if head == '0' {
 		c := l.peek()
 		switch c {
 		case 'x':
 			l.next()
-			err = scanHex(l)
-			return
+			if err := scanHex(l); err != nil {
+				return l.errorf(err.Error())
+			}
+			l.emit(itemIntegerValue)
+			return lexText
 		case 'o':
 			l.next()
-			err = scanOct(l)
-			return
+			if err := scanOct(l); err != nil {
+				return l.errorf(err.Error())
+			}
+			l.emit(itemIntegerValue)
+			return lexText
 		case 'b':
 			l.next()
-			err = scanBin(l)
-			return
+			if err := scanBin(l); err != nil {
+				return l.errorf(err.Error())
+			}
+			l.emit(itemIntegerValue)
+			return lexText
 		}
 	}
 
-	err = scanDigits(l)
-	return
+	// lexing decimal or float
+	// float: https://github.com/toml-lang/toml#float
+	founddot := false
+	founde := false
+	foundPlusMinus := false
+
+	for {
+		c := l.next()
+		if isDigit(c) {
+			continue
+		}
+
+		if !founddot && c == '.' {
+			founddot = true
+			continue
+		}
+
+		if !founde && (c == 'e' || c == 'E') {
+			founde = true
+			continue
+		}
+
+		// case of "6.626e-34"
+		if founde && !foundPlusMinus && (c == '-' || c == '+') {
+			foundPlusMinus = true
+			continue
+		}
+
+		if c == '_' {
+			if isDigit(l.peek()) {
+				continue
+			}
+			return l.errorf("expected integer after '_'")
+		}
+
+		break
+	}
+
+	if founddot || founde {
+		l.emit(itemFloatValue)
+		return lexText
+	}
+
+	l.emit(itemIntegerValue)
+	return lexText
 }
 
 // https://github.com/toml-lang/toml#keys

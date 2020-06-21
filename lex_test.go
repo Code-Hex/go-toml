@@ -261,6 +261,90 @@ func TestLex(t *testing.T) {
 			mkItem(itemEqual, "="),
 			mkItem(itemError, "expected integer after '_'"),
 		}},
+		{"key = fractional +1.0", `key = +1.0`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "+1.0"),
+			tEOF,
+		}},
+		{"key = fractional π", `key = 3.1415`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "3.1415"),
+			tEOF,
+		}},
+		{"key = fractional -0.001", `key = -0.001`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "-0.001"),
+			tEOF,
+		}},
+		{"key = exponent 5e+22", `key = 5e+22`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "5e+22"),
+			tEOF,
+		}},
+		{"key = exponent 1e06", `key = 1e06`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "1e06"),
+			tEOF,
+		}},
+		{"key = exponent -2E-2", `key = -2E-2`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "-2E-2"),
+			tEOF,
+		}},
+		{"key = float 6.626e-34", `key = 6.626e-34`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "6.626e-34"),
+			tEOF,
+		}},
+		{"key = float 224_617.445_991_228", `key = 224_617.445_991_228`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "224_617.445_991_228"),
+			tEOF,
+		}},
+		{"key = float inf", `key = inf`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "inf"),
+			tEOF,
+		}},
+		{"key = float +inf", `key = +inf`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "+inf"),
+			tEOF,
+		}},
+		{"key = float -inf", `key = -inf`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "-inf"),
+			tEOF,
+		}},
+		{"key = float nan", `key = nan`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "nan"),
+			tEOF,
+		}},
+		{"key = float +nan", `key = +nan`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "+nan"),
+			tEOF,
+		}},
+		{"key = float -nan", `key = -nan`, []item{
+			mkItem(itemKey, "key"),
+			mkItem(itemEqual, "="),
+			mkItem(itemFloatValue, "-nan"),
+			tEOF,
+		}},
 	} {
 		items := collect(&test)
 		if !equal(items, test.items, false) {
