@@ -280,39 +280,38 @@ func lexValue(l *lexer) stateFn {
 	}
 }
 
-func lexNumber(l *lexer, head rune) stateFn {
+func lexNumber(l *lexer, head rune) (ret stateFn) {
+	var err error
+
+	defer func() {
+		if err != nil {
+			ret = l.errorf(err.Error())
+		} else {
+			l.emit(itemIntegerValue)
+			ret = lexText
+		}
+	}()
+
 	if head == '0' {
 		c := l.peek()
 		switch c {
 		case 'x':
 			l.next()
-			if err := scanHex(l); err != nil {
-				return l.errorf(err.Error())
-			}
-			l.emit(itemIntegerValue)
-			return lexText
+			err = scanHex(l)
+			return
 		case 'o':
 			l.next()
-			if err := scanOct(l); err != nil {
-				return l.errorf(err.Error())
-			}
-			l.emit(itemIntegerValue)
-			return lexText
+			err = scanOct(l)
+			return
 		case 'b':
 			l.next()
-			if err := scanBin(l); err != nil {
-				return l.errorf(err.Error())
-			}
-			l.emit(itemIntegerValue)
-			return lexText
+			err = scanBin(l)
+			return
 		}
 	}
 
-	if err := scanDigits(l); err != nil {
-		return l.errorf(err.Error())
-	}
-	l.emit(itemIntegerValue)
-	return lexText
+	err = scanDigits(l)
+	return
 }
 
 // https://github.com/toml-lang/toml#keys
