@@ -225,7 +225,6 @@ func lexEqual(l *lexer) stateFn {
 }
 
 func lexValue(l *lexer) stateFn {
-VALUE:
 	for {
 		c := l.next()
 		if c == eof {
@@ -269,40 +268,51 @@ VALUE:
 			l.emitBuffer(itemStringValue)
 			l.skip() // skip "'" at last
 		case '+', '-':
-			next := l.peek()
-			if !isDigit(next) {
-				return l.errorf("expected digit character: `%#U`", next)
+			c = l.next()
+			if !isDigit(c) {
+				return l.errorf("expected digit character: `%#U`", c)
 			}
-			continue VALUE
-		case '0':
-			switch l.peek() {
-			case 'x':
-				l.next()
-				if err := scanHex(l); err != nil {
-					return l.errorf(err.Error())
-				}
-			case 'o':
-				l.next()
-				if err := scanOct(l); err != nil {
-					return l.errorf(err.Error())
-				}
-			case 'b':
-				l.next()
-				if err := scanBin(l); err != nil {
-					return l.errorf(err.Error())
-				}
-			case '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				continue VALUE
-			}
-			l.emit(itemIntegerValue)
-		case '1', '2', '3', '4', '5', '6', '7', '8', '9':
-			if err := scanDigits(l); err != nil {
-				return l.errorf(err.Error())
-			}
-			l.emit(itemIntegerValue)
+		}
+		if isDigit(c) {
+			return lexNumber(l, c)
 		}
 		return lexText
 	}
+}
+
+func lexNumber(l *lexer, head rune) stateFn {
+	if head == '0' {
+		c := l.peek()
+		switch c {
+		case 'x':
+			l.next()
+			if err := scanHex(l); err != nil {
+				return l.errorf(err.Error())
+			}
+			l.emit(itemIntegerValue)
+			return lexText
+		case 'o':
+			l.next()
+			if err := scanOct(l); err != nil {
+				return l.errorf(err.Error())
+			}
+			l.emit(itemIntegerValue)
+			return lexText
+		case 'b':
+			l.next()
+			if err := scanBin(l); err != nil {
+				return l.errorf(err.Error())
+			}
+			l.emit(itemIntegerValue)
+			return lexText
+		}
+	}
+
+	if err := scanDigits(l); err != nil {
+		return l.errorf(err.Error())
+	}
+	l.emit(itemIntegerValue)
+	return lexText
 }
 
 // https://github.com/toml-lang/toml#keys
