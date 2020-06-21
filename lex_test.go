@@ -345,6 +345,18 @@ func TestLex(t *testing.T) {
 			mkItem(itemFloatValue, "-nan"),
 			tEOF,
 		}},
+		{"bool1 = true", `bool1 = true`, []item{
+			mkItem(itemKey, "bool1"),
+			mkItem(itemEqual, "="),
+			mkItem(itemBooleanValue, "true"),
+			tEOF,
+		}},
+		{"bool2 = false", `bool2 = false`, []item{
+			mkItem(itemKey, "bool2"),
+			mkItem(itemEqual, "="),
+			mkItem(itemBooleanValue, "false"),
+			tEOF,
+		}},
 	} {
 		items := collect(&test)
 		if !equal(items, test.items, false) {

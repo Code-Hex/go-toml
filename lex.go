@@ -279,11 +279,17 @@ func lexValue(l *lexer) stateFn {
 			// 'i' => expected "inf"
 			// 'n' => expected "nan"
 			return lexNumber(l, c)
+		case 't', 'f':
+			if l.follow("rue") || l.follow("alse") {
+				l.emit(itemBooleanValue)
+				return lexText
+			}
 		}
 
 		if isDigit(c) {
 			return lexNumber(l, c)
 		}
+
 		return lexText
 	}
 }
